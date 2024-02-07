@@ -11,7 +11,7 @@ import numpy as np
 sys.path.append(os.path.dirname(__file__))
 
 
-def get_available_device(max_memory=0.8):
+def get_available_device(max_memory: float = 0.8) -> int:
     """
     select available device based on the memory utilization status of the device
     :param max_memory: the maximum memory utilization ratio that is considered available
@@ -36,9 +36,9 @@ def get_available_device(max_memory=0.8):
     return available
 
 
-def get_centroid(polygon):
-    polygon = np.array(polygon)
-    return [polygon[:, 0].mean(), polygon[:, 1].mean()]
+def get_centroid(polygon: list[list[float]]) -> list[float]:
+    polygon_array = np.array(polygon)
+    return [polygon_array[:, 0].mean(), polygon_array[:, 1].mean()]
 
 
 def check_centroid_in_center(centroid, start_x, start_y, chip_sz, padding):
@@ -73,7 +73,7 @@ def find_i_j(centroid, n_rows, n_cols, chip_sz, padding, filter_detections):
     return None
 
 
-def calculate_rectangle_size_from_batch_size(batch_size):
+def calculate_rectangle_size_from_batch_size(batch_size: int) -> tuple[int, int]:
     """
     calculate number of rows and cols to composite a rectangle given a batch size
     :param batch_size:
@@ -103,7 +103,13 @@ def calculate_rectangle_size_from_batch_size(batch_size):
     return rectangle_height, rectangle_width
 
 
-def get_tile_size(model_height, model_width, padding, batch_height, batch_width):
+def get_tile_size(
+    model_height: int,
+    model_width: int,
+    padding: int,
+    batch_height: int,
+    batch_width: int,
+) -> tuple[int, int]:
     """
     Calculate request tile size given model and batch dimensions
     :param model_height:
@@ -120,8 +126,13 @@ def get_tile_size(model_height, model_width, padding, batch_height, batch_width)
 
 
 def tile_to_batch(
-    pixel_block, model_height, model_width, padding, fixed_tile_size=True, **kwargs
-):
+    pixel_block: np.ndarray,
+    model_height: int,
+    model_width: int,
+    padding: int,
+    fixed_tile_size: bool = True,
+    **kwargs
+) -> tuple[np.ndarray, int, int]:
     inner_width = model_width - 2 * padding
     inner_height = model_height - 2 * padding
 
@@ -272,7 +283,7 @@ class TextSAM:
         )
         self.groundingdino_model.eval()
 
-    def getParameterInfo(self):
+    def getParameterInfo(self) -> list[dict]:
         required_parameters = [
             {
                 "name": "raster",
@@ -350,14 +361,14 @@ class TextSAM:
         )
         return required_parameters
 
-    def getConfiguration(self, **scalars):
+    def getConfiguration(self, **scalars) -> dict:
         self.tytx = int(scalars.get("tile_size", self.json_info["ImageHeight"]))
         self.batch_size = int(math.sqrt(int(scalars.get("batch_size", 4)))) ** 2
         self.padding = int(scalars.get("padding", self.tytx // 4))
-        self.text_prompt = scalars.get("text_prompt")
+        self.text_prompt: str = scalars.get("text_prompt")  # type: ignore
 
-        self.box_threshold = float(scalars.get("box_threshold"))
-        self.text_threshold = float(scalars.get("text_threshold"))
+        self.box_threshold = float(scalars.get("box_threshold"))  # type: ignore
+        self.text_threshold = float(scalars.get("text_threshold"))  # type: ignore
         (
             self.rectangle_height,
             self.rectangle_width,
@@ -380,13 +391,13 @@ class TextSAM:
             "fixedTileSize": 1,
         }
 
-    def getFields(self):
+    def getFields(self) -> str:
         return json.dumps(fields)
 
-    def getGeometryType(self):
+    def getGeometryType(self) -> int:
         return GeometryType.Polygon
 
-    def vectorize(self, **pixelBlocks):
+    def vectorize(self, **pixelBlocks) -> dict:
         raster_mask = pixelBlocks["raster_mask"]
         raster_pixels = pixelBlocks["raster_pixels"]
         raster_pixels[np.where(raster_mask == 0)] = 0
@@ -530,7 +541,7 @@ class TextSAM:
         features["features"] = []
 
         for mask_idx, final_mask in enumerate(final_masks):
-            features["features"].append(
+            features["features"].append(  # type: ignore
                 {
                     "attributes": {
                         "OID": mask_idx + 1,
