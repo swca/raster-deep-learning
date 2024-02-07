@@ -729,6 +729,8 @@ class TextSAM:
         final_masks = keep_masks
         pred_score = keep_scores
 
+        self.features["features"] = []
+
         for mask_idx, final_mask in enumerate(final_masks):
             self.features["features"].append(  # type: ignore
                 {
