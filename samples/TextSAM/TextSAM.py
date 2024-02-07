@@ -4,6 +4,7 @@ import math
 import os
 import sys
 import typing
+from enum import Enum
 
 import arcpy
 import cv2
@@ -183,7 +184,7 @@ def tile_to_batch(
 
 
 class TextSAM:
-    fields = {
+    fields: typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]] = {
         "fields": [
             {"name": "OID", "type": "esriFieldTypeOID", "alias": "OID"},
             {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
@@ -196,16 +197,24 @@ class TextSAM:
         ]
     }
 
-    class GeometryType:
-        Point = 1
-        Multipoint = 2
-        Polyline = 3
-        Polygon = 4
+    class GeometryType(Enum):
+        Point: int = 1
+        Multipoint: int = 2
+        Polyline: int = 3
+        Polygon: int = 4
 
     def __init__(self) -> None:
-        self.name = "Text SAM Model"
-        self.description = "This python raster function applies computer vision to segment anything from text input"
-        self.features = {
+        self.name: str = "Text SAM Model"
+        self.description: str = "This python raster function applies computer vision to segment anything from text input"
+        self.features: dict[
+            str,
+            typing.Union[
+                str,
+                typing.Dict[str, str],
+                typing.List[typing.Dict[str, typing.Any]],
+                typing.List[typing.Dict[str, typing.Any]],
+            ],
+        ] = {
             "displayFieldName": "",
             "fieldAliases": {
                 "FID": "FID",
@@ -224,6 +233,16 @@ class TextSAM:
             ],
             "features": [],
         }
+        self.json_info: typing.Dict[str, typing.Any]
+        self.mask_generator: typing.Any
+        self.device_id: typing.Union[int, str, None]
+        self.groundingdino_model: typing.Any
+        self.tytx: int
+        self.batch_size: int
+        self.padding: int
+        self.text_prompt: str
+        self.box_threshold: float
+        self.text_threshold: float
 
     def initialize(self, **kwargs: typing.Any) -> None:
         if "model" not in kwargs:
@@ -420,7 +439,7 @@ class TextSAM:
 
     @classmethod
     def getGeometryType(cls) -> int:
-        return cls.GeometryType.Polygon
+        return cls.GeometryType.Polygon.value
 
     def vectorize(self, **pixelBlocks: typing.Any) -> dict[str, typing.Any]:
         raster_mask = pixelBlocks["raster_mask"]
@@ -462,7 +481,6 @@ class TextSAM:
                 ]
             )
             image_transformed, _ = transform(pil_image, None)
-            final_caption = ""
             if "," in self.text_prompt:
                 split_prompts = self.text_prompt.split(",")
                 cleaned_items = [split_prompt.strip() for split_prompt in split_prompts]
@@ -540,7 +558,7 @@ class TextSAM:
         keep_scores = []
 
         for idx, mask in enumerate(mask_list):
-            if mask == []:
+            if not mask:
                 continue
             centroid = get_centroid(mask[0])
             tytx = self.tytx
