@@ -2,6 +2,7 @@ import json
 import math
 import os
 import re
+import sys
 import typing
 from enum import Enum
 from glob import glob
@@ -10,15 +11,6 @@ import arcpy
 import cv2
 import numpy as np
 from PIL import Image
-
-import groundingdino.datasets.transforms
-import groundingdino.models
-import groundingdino.util.box_ops
-import groundingdino.util.inference
-import groundingdino.util.slconfig
-import groundingdino.util.utils
-import segment_anything
-import segment_anything.modeling
 
 try:
     import torch
@@ -31,6 +23,28 @@ try:
     import GPUtil
 except ModuleNotFoundError:
     pass
+
+
+def add_to_sys_path(*paths: str) -> None:
+    """Add multiple directories to the system path if not already added."""
+    for path in paths:
+        full_path = os.path.join(os.path.dirname(__file__), path)
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"Path {full_path} does not exist")
+        if full_path not in sys.path:
+            sys.path.insert(0, full_path)
+
+
+add_to_sys_path("segment-anything", "GroundingDINO-main", ".")
+
+import groundingdino.datasets.transforms  # noqa: E402
+import groundingdino.models  # noqa: E402
+import groundingdino.util.box_ops  # noqa: E402
+import groundingdino.util.inference  # noqa: E402
+import groundingdino.util.slconfig  # noqa: E402
+import groundingdino.util.utils  # noqa: E402
+import segment_anything  # noqa: E402
+import segment_anything.modeling  # noqa: E402
 
 
 def get_available_device(max_memory: float = 0.8) -> int:
