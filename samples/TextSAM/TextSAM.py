@@ -39,6 +39,11 @@ def get_available_device(max_memory: float = 0.8) -> int:
 
 
 def get_centroid(polygon: typing.List[typing.List[float]]) -> typing.List[float]:
+    """
+    Get the centroid of a polygon
+    :param polygon: list of points that represent the polygon
+    :return: centroid of the polygon
+    """
     polygon_array = np.array(polygon)
     return [polygon_array[:, 0].mean(), polygon_array[:, 1].mean()]
 
@@ -50,6 +55,15 @@ def check_centroid_in_center(
     chip_sz: int,
     padding: int,
 ) -> bool:
+    """
+    Check if the centroid is in the center of the chip
+    :param centroid: centroid of the polygon
+    :param start_x: start x of the chip
+    :param start_y: start y of the chip
+    :param chip_sz: size of the chip
+    :param padding: padding
+    :return: True if the centroid is in the center of the chip, False otherwise
+    """
     return (
         (centroid[1] >= (start_y + padding))
         and (centroid[1] <= (start_y + (chip_sz - padding)))
@@ -66,6 +80,16 @@ def find_i_j(
     padding: int,
     filter_detections: bool = False,
 ) -> typing.Union[typing.Tuple[int, int, bool], None]:
+    """
+    Find the i, j index of the centroid in the grid
+    :param centroid: centroid of the polygon
+    :param n_rows: number of rows in the grid
+    :param n_cols: number of cols in the grid
+    :param chip_sz: size of the chip
+    :param padding: padding
+    :param filter_detections: whether to filter the detections
+    :return: i, j index of the centroid in the grid, and whether the centroid is in the center of the chip
+    """
     for i in range(n_rows):
         for j in range(n_cols):
             start_x = i * chip_sz
@@ -148,6 +172,16 @@ def tile_to_batch(
     fixed_tile_size: bool = True,
     **kwargs: typing.Any,
 ) -> typing.Tuple[np.ndarray[typing.Any, typing.Any], int, int]:
+    """
+    Convert pixel block to batch
+    :param pixel_block: pixel block
+    :param model_height: model height
+    :param model_width: model width
+    :param padding: padding
+    :param fixed_tile_size: whether to use fixed tile size
+    :param kwargs: other parameters
+    :return: batch, batch height, batch width
+    """
     inner_width = model_width - 2 * padding
     inner_height = model_height - 2 * padding
 
@@ -184,6 +218,8 @@ def tile_to_batch(
 
 
 class TextSAM:
+    """TextSAM class"""
+
     fields: typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]] = {
         "fields": [
             {"name": "OID", "type": "esriFieldTypeOID", "alias": "OID"},
@@ -196,16 +232,25 @@ class TextSAM:
             {"name": "Shape", "type": "esriFieldTypeGeometry", "alias": "Shape"},
         ]
     }
+    """Fields for the output feature class"""
 
     class GeometryType(Enum):
+        """Geometry type enumeration for the output feature class."""
+
         Point: int = 1
         Multipoint: int = 2
         Polyline: int = 3
         Polygon: int = 4
 
     def __init__(self) -> None:
+        """Constructor for TextSAM class."""
+
         self.name: str = "Text SAM Model"
+        """Name of the python raster function"""
+
         self.description: str = "This python raster function applies computer vision to segment anything from text input"
+        """Description of the python raster function"""
+
         self.features: dict[
             str,
             typing.Union[
@@ -233,18 +278,44 @@ class TextSAM:
             ],
             "features": [],
         }
+        """Features for the output feature class"""
+
         self.json_info: typing.Dict[str, typing.Any]
+        """JSON info for the model"""
+
         self.mask_generator: typing.Any
+        """Mask generator for the model"""
+
         self.device_id: typing.Union[int, str, None]
+        """Device ID for the model"""
+
         self.groundingdino_model: typing.Any
+        """GroundingDINO model"""
+
         self.tytx: int
+        """Tile size"""
+
         self.batch_size: int
+        """Batch size"""
+
         self.padding: int
+        """Padding"""
+
         self.text_prompt: str
+        """Text prompt"""
+
         self.box_threshold: float
+        """Box threshold"""
+
         self.text_threshold: float
+        """Text threshold"""
 
     def initialize(self, **kwargs: typing.Any) -> None:
+        """
+        Initialize the model
+        :param kwargs: keyword arguments
+        :return: None
+        """
         if "model" not in kwargs:
             return
 
@@ -326,6 +397,10 @@ class TextSAM:
         self.groundingdino_model.eval()
 
     def getParameterInfo(self) -> typing.List[typing.Dict[str, typing.Any]]:
+        """
+        Get parameter info
+        :return: list of parameter info
+        """
         required_parameters = [
             {
                 "name": "raster",
@@ -404,6 +479,11 @@ class TextSAM:
         return required_parameters
 
     def getConfiguration(self, **scalars: typing.Any) -> dict[str, typing.Any]:
+        """
+        Get configuration
+        :param scalars: scalar parameters
+        :return: configuration
+        """
         self.tytx = int(scalars.get("tile_size", self.json_info["ImageHeight"]))
         self.batch_size = int(math.sqrt(int(scalars.get("batch_size", 4)))) ** 2
         self.padding = int(scalars.get("padding", self.tytx // 4))
@@ -435,13 +515,26 @@ class TextSAM:
 
     @classmethod
     def getFields(cls) -> str:
+        """
+        Get fields
+        :return: fields
+        """
         return json.dumps(cls.fields)
 
     @classmethod
     def getGeometryType(cls) -> int:
+        """
+        Get geometry type
+        :return: geometry type
+        """
         return cls.GeometryType.Polygon.value
 
     def vectorize(self, **pixelBlocks: typing.Any) -> dict[str, typing.Any]:
+        """
+        Vectorize the pixel blocks
+        :param pixelBlocks: pixel blocks
+        :return: vectorized pixel blocks
+        """
         raster_mask = pixelBlocks["raster_mask"]
         raster_pixels = pixelBlocks["raster_pixels"]
         raster_pixels[np.where(raster_mask == 0)] = 0
