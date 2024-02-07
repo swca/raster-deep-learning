@@ -1,0 +1,4 @@
+*.dlpk
+GroundingDINO-main/
+segment-anything/
+supervision/
