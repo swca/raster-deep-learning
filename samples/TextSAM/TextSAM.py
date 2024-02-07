@@ -3,6 +3,7 @@ import json
 import math
 import os
 import sys
+import typing
 
 import arcpy
 import cv2
@@ -36,12 +37,18 @@ def get_available_device(max_memory: float = 0.8) -> int:
     return available
 
 
-def get_centroid(polygon: list[list[float]]) -> list[float]:
+def get_centroid(polygon: typing.List[typing.List[float]]) -> typing.List[float]:
     polygon_array = np.array(polygon)
     return [polygon_array[:, 0].mean(), polygon_array[:, 1].mean()]
 
 
-def check_centroid_in_center(centroid, start_x, start_y, chip_sz, padding):
+def check_centroid_in_center(
+    centroid: typing.List[float],
+    start_x: int,
+    start_y: int,
+    chip_sz: int,
+    padding: int,
+) -> bool:
     return (
         (centroid[1] >= (start_y + padding))
         and (centroid[1] <= (start_y + (chip_sz - padding)))
@@ -50,7 +57,14 @@ def check_centroid_in_center(centroid, start_x, start_y, chip_sz, padding):
     )
 
 
-def find_i_j(centroid, n_rows, n_cols, chip_sz, padding, filter_detections):
+def find_i_j(
+    centroid: typing.List[float],
+    n_rows: int,
+    n_cols: int,
+    chip_sz: int,
+    padding: int,
+    filter_detections: bool = False,
+) -> typing.Union[typing.Tuple[int, int, bool], None]:
     for i in range(n_rows):
         for j in range(n_cols):
             start_x = i * chip_sz
@@ -73,7 +87,7 @@ def find_i_j(centroid, n_rows, n_cols, chip_sz, padding, filter_detections):
     return None
 
 
-def calculate_rectangle_size_from_batch_size(batch_size: int) -> tuple[int, int]:
+def calculate_rectangle_size_from_batch_size(batch_size: int) -> typing.Tuple[int, int]:
     """
     calculate number of rows and cols to composite a rectangle given a batch size
     :param batch_size:
@@ -109,7 +123,7 @@ def get_tile_size(
     padding: int,
     batch_height: int,
     batch_width: int,
-) -> tuple[int, int]:
+) -> typing.Tuple[int, int]:
     """
     Calculate request tile size given model and batch dimensions
     :param model_height:
@@ -126,13 +140,13 @@ def get_tile_size(
 
 
 def tile_to_batch(
-    pixel_block: np.ndarray,
+    pixel_block: np.ndarray[typing.Any, typing.Any],
     model_height: int,
     model_width: int,
     padding: int,
     fixed_tile_size: bool = True,
-    **kwargs
-) -> tuple[np.ndarray, int, int]:
+    **kwargs: typing.Any,
+) -> typing.Tuple[np.ndarray[typing.Any, typing.Any], int, int]:
     inner_width = model_width - 2 * padding
     inner_height = model_height - 2 * padding
 
@@ -198,11 +212,11 @@ class GeometryType:
 
 
 class TextSAM:
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = "Text SAM Model"
         self.description = "This python raster function applies computer vision to segment anything from text input"
 
-    def initialize(self, **kwargs):
+    def initialize(self, **kwargs: typing.Any) -> None:
         if "model" not in kwargs:
             return
 
@@ -283,7 +297,7 @@ class TextSAM:
         )
         self.groundingdino_model.eval()
 
-    def getParameterInfo(self) -> list[dict]:
+    def getParameterInfo(self) -> typing.List[typing.Dict[str, typing.Any]]:
         required_parameters = [
             {
                 "name": "raster",
@@ -361,7 +375,7 @@ class TextSAM:
         )
         return required_parameters
 
-    def getConfiguration(self, **scalars) -> dict:
+    def getConfiguration(self, **scalars: typing.Any) -> dict[str, typing.Any]:
         self.tytx = int(scalars.get("tile_size", self.json_info["ImageHeight"]))
         self.batch_size = int(math.sqrt(int(scalars.get("batch_size", 4)))) ** 2
         self.padding = int(scalars.get("padding", self.tytx // 4))
@@ -397,7 +411,7 @@ class TextSAM:
     def getGeometryType(self) -> int:
         return GeometryType.Polygon
 
-    def vectorize(self, **pixelBlocks) -> dict:
+    def vectorize(self, **pixelBlocks: typing.Any) -> dict[str, typing.Any]:
         raster_mask = pixelBlocks["raster_mask"]
         raster_pixels = pixelBlocks["raster_pixels"]
         raster_pixels[np.where(raster_mask == 0)] = 0
