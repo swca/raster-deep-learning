@@ -1,12 +1,14 @@
+# import importlib
 import json
-import sys, os, importlib
-
-sys.path.append(os.path.dirname(__file__))
-
-import numpy as np
 import math
+import os
+import sys
+
 import arcpy
 import cv2
+import numpy as np
+
+sys.path.append(os.path.dirname(__file__))
 
 
 def get_available_device(max_memory=0.8):
@@ -194,14 +196,14 @@ class TextSAM:
             return
 
         model = kwargs["model"]
-        model_as_file = True
+        # model_as_file = True
         try:
             with open(model, "r") as f:
                 self.json_info = json.load(f)
         except FileNotFoundError:
             try:
                 self.json_info = json.loads(model)
-                model_as_file = False
+                # model_as_file = False
             except json.decoder.JSONDecodeError:
                 raise Exception("Invalid model argument")
 
