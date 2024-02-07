@@ -71,10 +71,10 @@ def find_i_j(
             start_y = j * chip_sz
 
             if (
-                (centroid[1] > (start_y))
-                and (centroid[1] < (start_y + (chip_sz)))
-                and (centroid[0] > (start_x))
-                and (centroid[0] < (start_x + (chip_sz)))
+                (centroid[1] > start_y)
+                and (centroid[1] < (start_y + chip_sz))
+                and (centroid[0] > start_x)
+                and (centroid[0] < (start_x + chip_sz))
             ):
                 in_center = check_centroid_in_center(
                     centroid, start_x, start_y, chip_sz, padding
@@ -182,39 +182,48 @@ def tile_to_batch(
     return batch, batch_height, batch_width
 
 
-features = {
-    "displayFieldName": "",
-    "fieldAliases": {"FID": "FID", "Class": "Class", "Confidence": "Confidence"},
-    "geometryType": "esriGeometryPolygon",
-    "fields": [
-        {"name": "FID", "type": "esriFieldTypeOID", "alias": "FID"},
-        {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
-        {"name": "Confidence", "type": "esriFieldTypeDouble", "alias": "Confidence"},
-    ],
-    "features": [],
-}
-
-fields = {
-    "fields": [
-        {"name": "OID", "type": "esriFieldTypeOID", "alias": "OID"},
-        {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
-        {"name": "Confidence", "type": "esriFieldTypeDouble", "alias": "Confidence"},
-        {"name": "Shape", "type": "esriFieldTypeGeometry", "alias": "Shape"},
-    ]
-}
-
-
-class GeometryType:
-    Point = 1
-    Multipoint = 2
-    Polyline = 3
-    Polygon = 4
-
-
 class TextSAM:
+    fields = {
+        "fields": [
+            {"name": "OID", "type": "esriFieldTypeOID", "alias": "OID"},
+            {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
+            {
+                "name": "Confidence",
+                "type": "esriFieldTypeDouble",
+                "alias": "Confidence",
+            },
+            {"name": "Shape", "type": "esriFieldTypeGeometry", "alias": "Shape"},
+        ]
+    }
+
+    class GeometryType:
+        Point = 1
+        Multipoint = 2
+        Polyline = 3
+        Polygon = 4
+
     def __init__(self) -> None:
         self.name = "Text SAM Model"
         self.description = "This python raster function applies computer vision to segment anything from text input"
+        self.features = {
+            "displayFieldName": "",
+            "fieldAliases": {
+                "FID": "FID",
+                "Class": "Class",
+                "Confidence": "Confidence",
+            },
+            "geometryType": "esriGeometryPolygon",
+            "fields": [
+                {"name": "FID", "type": "esriFieldTypeOID", "alias": "FID"},
+                {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
+                {
+                    "name": "Confidence",
+                    "type": "esriFieldTypeDouble",
+                    "alias": "Confidence",
+                },
+            ],
+            "features": [],
+        }
 
     def initialize(self, **kwargs: typing.Any) -> None:
         if "model" not in kwargs:
@@ -405,11 +414,13 @@ class TextSAM:
             "fixedTileSize": 1,
         }
 
-    def getFields(self) -> str:
-        return json.dumps(fields)
+    @classmethod
+    def getFields(cls) -> str:
+        return json.dumps(cls.fields)
 
-    def getGeometryType(self) -> int:
-        return GeometryType.Polygon
+    @classmethod
+    def getGeometryType(cls) -> int:
+        return cls.GeometryType.Polygon
 
     def vectorize(self, **pixelBlocks: typing.Any) -> dict[str, typing.Any]:
         raster_mask = pixelBlocks["raster_mask"]
@@ -468,7 +479,7 @@ class TextSAM:
                     device=self.device_id,
                 )
             except RuntimeError as e:
-                if ("no elements") in str(e):
+                if "no elements" in str(e):
                     continue
             W, H = pil_image.size
             boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
@@ -552,10 +563,8 @@ class TextSAM:
         final_masks = keep_masks
         pred_score = keep_scores
 
-        features["features"] = []
-
         for mask_idx, final_mask in enumerate(final_masks):
-            features["features"].append(  # type: ignore
+            self.features["features"].append(  # type: ignore
                 {
                     "attributes": {
                         "OID": mask_idx + 1,
@@ -565,4 +574,4 @@ class TextSAM:
                     "geometry": {"rings": final_mask},
                 }
             )
-        return {"output_vectors": json.dumps(features)}
+        return {"output_vectors": json.dumps(self.features)}
