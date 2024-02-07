@@ -1,9 +1,7 @@
-# import importlib
 import json
 import math
 import os
 import re
-import sys
 import typing
 from enum import Enum
 from glob import glob
@@ -13,38 +11,26 @@ import cv2
 import numpy as np
 from PIL import Image
 
+import groundingdino.datasets.transforms
+import groundingdino.models
+import groundingdino.util.box_ops
+import groundingdino.util.inference
+import groundingdino.util.slconfig
+import groundingdino.util.utils
+import segment_anything
+import segment_anything.modeling
+
 try:
     import torch
 except ModuleNotFoundError as e:
     raise RuntimeError(
         "PyTorch is not installed. Install it using conda install -c esri deep-learning-essentials"
     ) from e
+
 try:
     import GPUtil
 except ModuleNotFoundError:
     pass
-
-
-def add_to_sys_path(*paths: str) -> None:
-    """Add multiple directories to the system path if not already added."""
-    for path in paths:
-        full_path = os.path.join(os.path.dirname(__file__), path)
-        if not os.path.exists(full_path):
-            raise FileNotFoundError(f"Path {full_path} does not exist")
-        if full_path not in sys.path:
-            sys.path.insert(0, full_path)
-
-
-add_to_sys_path("segment-anything", "GroundingDINO-main", ".")
-
-from groundingdino.models import build_model  # noqa: E402
-from groundingdino.util.slconfig import SLConfig  # noqa: E402
-from groundingdino.util.utils import clean_state_dict  # noqa: E402
-from groundingdino.util import box_ops  # noqa: E402
-from groundingdino.util.inference import predict  # noqa: E402
-from groundingdino.datasets import transforms as T  # noqa: E402
-from segment_anything import sam_model_registry, SamPredictor  # noqa: E402
-from segment_anything.modeling import Sam  # noqa: E402
 
 
 def get_available_device(max_memory: float = 0.8) -> int:
@@ -344,7 +330,9 @@ class TextSAM:
         """Text threshold"""
 
     @staticmethod
-    def get_sam(sam_root_dir: typing.Optional[str] = None) -> Sam:
+    def get_sam(
+        sam_root_dir: typing.Optional[str] = None,
+    ) -> segment_anything.modeling.Sam:
         """
         Get the SAM model
         :param sam_root_dir: SAM root directory
@@ -368,7 +356,7 @@ class TextSAM:
         if model_type_match is None:
             raise RuntimeError("Invalid SAM model checkpoint")
         model_type = model_type_match.group(1)
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+        sam = segment_anything.sam_model_registry[model_type](checkpoint=sam_checkpoint)
         return sam
 
     @staticmethod
@@ -438,15 +426,15 @@ class TextSAM:
 
         sam = self.get_sam()
         sam.to(device=self.device_id)
-        self.mask_generator = SamPredictor(sam)
+        self.mask_generator = segment_anything.SamPredictor(sam)
 
         cache_file, cache_config_file = self.get_cache_and_config()
-        args = SLConfig.fromfile(cache_config_file)
-        self.groundingdino_model = build_model(args)
+        args = groundingdino.util.slconfig.SLConfig.fromfile(cache_config_file)
+        self.groundingdino_model = groundingdino.models.build_model(args)
         self.groundingdino_model.to(device=self.device_id)
         checkpoint = torch.load(cache_file, map_location="cpu")
         self.groundingdino_model.load_state_dict(
-            clean_state_dict(checkpoint["model"]), strict=False
+            groundingdino.util.utils.clean_state_dict(checkpoint["model"]), strict=False
         )
         self.groundingdino_model.eval()
 
@@ -615,10 +603,13 @@ class TextSAM:
             input_pixels = np.moveaxis(input_pixels, 0, -1)
             # for input_pixels in batch:
             pil_image = Image.fromarray(input_pixels)
-            transform = T.Compose(
+
+            transform = groundingdino.datasets.transforms.Compose(
                 [
-                    T.ToTensor(),
-                    T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    groundingdino.datasets.transforms.ToTensor(),
+                    groundingdino.datasets.transforms.Normalize(
+                        [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+                    ),
                 ]
             )
             image_transformed, _ = transform(pil_image, None)
@@ -629,7 +620,7 @@ class TextSAM:
             else:
                 final_caption = self.text_prompt
             try:
-                boxes, logits, phrases = predict(
+                boxes, logits, phrases = groundingdino.util.inference.predict(
                     model=self.groundingdino_model,
                     image=image_transformed,
                     caption=final_caption,
@@ -641,7 +632,9 @@ class TextSAM:
                 if "no elements" in str(e):
                     continue
             W, H = pil_image.size
-            boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
+            boxes = groundingdino.util.box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor(
+                [W, H, W, H]
+            )
             updated_boxes = []
             updated_scores = []
             for en1, box1 in enumerate(boxes):
