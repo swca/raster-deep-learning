@@ -253,6 +253,41 @@ def tile_to_batch(
 class TextSAM:
     """TextSAM class"""
 
+    name: str = "Text SAM Model"
+    """Name of the python raster function"""
+
+    description: str = "This python raster function applies computer vision to segment anything from text input"
+    """Description of the python raster function"""
+
+    features: dict[
+        str,
+        typing.Union[
+            str,
+            typing.Dict[str, str],
+            typing.List[typing.Dict[str, typing.Any]],
+            typing.List[typing.Dict[str, typing.Any]],
+        ],
+    ] = {
+        "displayFieldName": "",
+        "fieldAliases": {
+            "FID": "FID",
+            "Class": "Class",
+            "Confidence": "Confidence",
+        },
+        "geometryType": "esriGeometryPolygon",
+        "fields": [
+            {"name": "FID", "type": "esriFieldTypeOID", "alias": "FID"},
+            {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
+            {
+                "name": "Confidence",
+                "type": "esriFieldTypeDouble",
+                "alias": "Confidence",
+            },
+        ],
+        "features": [],
+    }
+    """Features for the output feature class"""
+
     fields: typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]] = {
         "fields": [
             {"name": "OID", "type": "esriFieldTypeOID", "alias": "OID"},
@@ -277,41 +312,6 @@ class TextSAM:
 
     def __init__(self) -> None:
         """Constructor for TextSAM class."""
-
-        self.name: str = "Text SAM Model"
-        """Name of the python raster function"""
-
-        self.description: str = "This python raster function applies computer vision to segment anything from text input"
-        """Description of the python raster function"""
-
-        self.features: dict[
-            str,
-            typing.Union[
-                str,
-                typing.Dict[str, str],
-                typing.List[typing.Dict[str, typing.Any]],
-                typing.List[typing.Dict[str, typing.Any]],
-            ],
-        ] = {
-            "displayFieldName": "",
-            "fieldAliases": {
-                "FID": "FID",
-                "Class": "Class",
-                "Confidence": "Confidence",
-            },
-            "geometryType": "esriGeometryPolygon",
-            "fields": [
-                {"name": "FID", "type": "esriFieldTypeOID", "alias": "FID"},
-                {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
-                {
-                    "name": "Confidence",
-                    "type": "esriFieldTypeDouble",
-                    "alias": "Confidence",
-                },
-            ],
-            "features": [],
-        }
-        """Features for the output feature class"""
 
         self.json_info: typing.Dict[str, typing.Any]
         """JSON info for the model"""
@@ -742,4 +742,8 @@ class TextSAM:
                     "geometry": {"rings": final_mask},
                 }
             )
-        return {"output_vectors": json.dumps(self.features)}
+        output = {"output_vectors": json.dumps(self.features)}
+
+        self.features["features"] = []
+
+        return output
