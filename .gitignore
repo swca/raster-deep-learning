@@ -1,0 +1,5 @@
+**/models/*
+*.dlpk
+**/supervision/*
+**/segment-anything/*
+**/GroundingDINO-main/*

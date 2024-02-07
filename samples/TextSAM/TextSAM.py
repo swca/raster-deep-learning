@@ -2,15 +2,49 @@
 import json
 import math
 import os
+import re
 import sys
 import typing
 from enum import Enum
+from glob import glob
 
 import arcpy
 import cv2
 import numpy as np
+from PIL import Image
 
-sys.path.append(os.path.dirname(__file__))
+try:
+    import torch
+except ModuleNotFoundError:
+    raise Exception(
+        "PyTorch is not installed. Install it using conda install -c esri deep-learning-essentials"
+    )
+try:
+    import GPUtil
+except ModuleNotFoundError:
+    pass
+
+
+def add_to_sys_path(*paths: str) -> None:
+    """Add multiple directories to the system path if not already added."""
+    for path in paths:
+        full_path = os.path.join(os.path.dirname(__file__), path)
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"Path {full_path} does not exist")
+        if full_path not in sys.path:
+            sys.path.insert(0, full_path)
+
+
+add_to_sys_path("segment-anything", "GroundingDINO-main", ".")
+
+from groundingdino.models import build_model  # noqa: E402
+from groundingdino.util.slconfig import SLConfig  # noqa: E402
+from groundingdino.util.utils import clean_state_dict  # noqa: E402
+from groundingdino.util import box_ops  # noqa: E402
+from groundingdino.util.inference import predict  # noqa: E402
+from groundingdino.datasets import transforms as T  # noqa: E402
+from segment_anything import sam_model_registry, SamPredictor  # noqa: E402
+from segment_anything.modeling import Sam  # noqa: E402
 
 
 def get_available_device(max_memory: float = 0.8) -> int:
@@ -20,12 +54,11 @@ def get_available_device(max_memory: float = 0.8) -> int:
     :return: GPU id that is available, -1 means no GPU is available/uses CPU, if GPUtil package is not installed, will
     return 0
     """
-    try:
-        import GPUtil
-    except ModuleNotFoundError:
-        return 0
 
-    GPUs = GPUtil.getGPUs()
+    try:
+        GPUs = GPUtil.getGPUs()
+    except NameError:
+        return 0
     freeMemory = 0
     available = 0
     for GPU in GPUs:
@@ -310,6 +343,50 @@ class TextSAM:
         self.text_threshold: float
         """Text threshold"""
 
+    @staticmethod
+    def get_sam(sam_root_dir: typing.Optional[str] = None) -> Sam:
+        _sam_root_dir = sam_root_dir or os.path.join(
+            os.path.dirname(__file__), "segment-anything"
+        )
+        if not os.path.exists(_sam_root_dir):
+            raise FileNotFoundError("SAM root directory not found")
+        # loading the SAM model checkpoint and initliazing SAM mask_generator
+        sam_checkpoints = glob(os.path.join(_sam_root_dir, "models", "sam_vit_*.pth"))
+        if len(sam_checkpoints) == 0:
+            raise FileNotFoundError("SAM model checkpoint not found")
+        elif len(sam_checkpoints) > 1:
+            raise RuntimeError("Multiple SAM model checkpoints found")
+        sam_checkpoint = os.path.abspath(sam_checkpoints[0])
+        sam_checkpoint_basename = os.path.basename(sam_checkpoint)
+        model_type_pattern = re.compile(r"sam_(vit_[blh])_[0-9a-f]{6}.pth")
+        model_type_match = model_type_pattern.match(sam_checkpoint_basename)
+        if model_type_match is None:
+            raise RuntimeError("Invalid SAM model checkpoint")
+        model_type = model_type_match.group(1)
+        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+        return sam
+
+    @staticmethod
+    def get_cache_and_config(
+        gdino_root_dir: typing.Optional[str] = None,
+    ) -> typing.Tuple[str, str]:
+        _gdino_root_dir = gdino_root_dir or os.path.join(
+            os.path.dirname(__file__), "GroundingDINO-main"
+        )
+        if not os.path.exists(_gdino_root_dir):
+            raise FileNotFoundError("GroundingDINO root directory not found")
+        # loading the GroundingDINO model checkpoint and config file and initliazing GroundingDINO
+        model_dir = os.path.join(_gdino_root_dir, "models")
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError("GroundingDINO models directory not found")
+        cache_file = os.path.join(model_dir, "groundingdino_swinb_cogcoor.pth")
+        if not os.path.exists(cache_file):
+            raise FileNotFoundError("GroundingDINO model checkpoint not found")
+        cache_config_file = os.path.join(model_dir, "GroundingDINO_SwinB.cfg.py")
+        if not os.path.exists(cache_config_file):
+            raise FileNotFoundError("GroundingDINO model config file not found")
+        return cache_file, cache_config_file
+
     def initialize(self, **kwargs: typing.Any) -> None:
         """
         Initialize the model
@@ -341,12 +418,6 @@ class TextSAM:
 
         if device is not None:
             if device >= 0:
-                try:
-                    import torch
-                except Exception:
-                    raise Exception(
-                        "PyTorch is not installed. Install it using conda install -c esri deep-learning-essentials"
-                    )
                 torch.cuda.set_device(device)
                 arcpy.env.processorType = "GPU"
                 arcpy.env.gpuId = str(device)
@@ -355,38 +426,11 @@ class TextSAM:
                 arcpy.env.processorType = "CPU"
                 self.device_id = "cpu"
 
-        # appending the current dir to path so that segment_anything,groundingdino and supervision can be imported
-        sam_root_dir = os.path.join(os.path.dirname(__file__), "segment-anything")
-        gdino_root_dir = os.path.join(os.path.dirname(__file__), "GroundingDINO-main")
-        supervision_root_dir = os.path.dirname(__file__)
-        if sam_root_dir not in sys.path:
-            sys.path.insert(0, sam_root_dir)
-        if gdino_root_dir not in sys.path:
-            sys.path.insert(0, gdino_root_dir)
-        if supervision_root_dir not in sys.path:
-            sys.path.insert(0, supervision_root_dir)
-
-        # importing segment_anything, groundingdino and other dependencies
-        from segment_anything import sam_model_registry, SamPredictor
-        from groundingdino.models import build_model
-        from groundingdino.util.slconfig import SLConfig
-        from groundingdino.util.utils import clean_state_dict
-        import torch
-
-        # loading the SAM model checkpoint and initliazing SAM mask_generator
-        sam_checkpoint = os.path.join(sam_root_dir, "models/sam_vit_b_01ec64.pth")
-        model_type = "vit_b"
-        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+        sam = self.get_sam()
         sam.to(device=self.device_id)
         self.mask_generator = SamPredictor(sam)
 
-        # loading the GroundingDINO model checkpoint and config file and initliazing GroundingDINO
-        cache_file = os.path.join(
-            gdino_root_dir, r"models/groundingdino_swinb_cogcoor.pth"
-        )
-        cache_config_file = os.path.join(
-            gdino_root_dir, r"models/GroundingDINO_SwinB.cfg.py"
-        )
+        cache_file, cache_config_file = self.get_cache_and_config()
         args = SLConfig.fromfile(cache_config_file)
         self.groundingdino_model = build_model(args)
         self.groundingdino_model.to(device=self.device_id)
@@ -553,12 +597,6 @@ class TextSAM:
 
         mask_list = []
         score_list = []
-
-        from PIL import Image
-        import torch
-        import groundingdino.datasets.transforms as T
-        from groundingdino.util import box_ops
-        from groundingdino.util.inference import predict
 
         # iterate over batch and get segment from model
         for batch_idx, input_pixels in enumerate(batch):
