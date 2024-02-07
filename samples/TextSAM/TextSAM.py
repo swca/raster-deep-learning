@@ -1,5 +1,6 @@
 import json
 import sys, os, importlib
+
 sys.path.append(os.path.dirname(__file__))
 
 import numpy as np
@@ -9,12 +10,12 @@ import cv2
 
 
 def get_available_device(max_memory=0.8):
-    '''
+    """
     select available device based on the memory utilization status of the device
     :param max_memory: the maximum memory utilization ratio that is considered available
     :return: GPU id that is available, -1 means no GPU is available/uses CPU, if GPUtil package is not installed, will
     return 0
-    '''
+    """
     try:
         import GPUtil
     except ModuleNotFoundError:
@@ -32,12 +33,20 @@ def get_available_device(max_memory=0.8):
 
     return available
 
+
 def get_centroid(polygon):
     polygon = np.array(polygon)
-    return [polygon[:, 0].mean(), polygon[:, 1].mean()]        
+    return [polygon[:, 0].mean(), polygon[:, 1].mean()]
+
 
 def check_centroid_in_center(centroid, start_x, start_y, chip_sz, padding):
-    return ((centroid[1] >= (start_y + padding)) and                  (centroid[1] <= (start_y + (chip_sz - padding))) and                 (centroid[0] >= (start_x + padding)) and                 (centroid[0] <= (start_x + (chip_sz - padding))))
+    return (
+        (centroid[1] >= (start_y + padding))
+        and (centroid[1] <= (start_y + (chip_sz - padding)))
+        and (centroid[0] >= (start_x + padding))
+        and (centroid[0] <= (start_x + (chip_sz - padding)))
+    )
+
 
 def find_i_j(centroid, n_rows, n_cols, chip_sz, padding, filter_detections):
     for i in range(n_rows):
@@ -45,14 +54,22 @@ def find_i_j(centroid, n_rows, n_cols, chip_sz, padding, filter_detections):
             start_x = i * chip_sz
             start_y = j * chip_sz
 
-            if (centroid[1] > (start_y)) and (centroid[1] < (start_y + (chip_sz))) and (centroid[0] > (start_x)) and (centroid[0] < (start_x + (chip_sz))):
-                in_center = check_centroid_in_center(centroid, start_x, start_y, chip_sz, padding)
+            if (
+                (centroid[1] > (start_y))
+                and (centroid[1] < (start_y + (chip_sz)))
+                and (centroid[0] > (start_x))
+                and (centroid[0] < (start_x + (chip_sz)))
+            ):
+                in_center = check_centroid_in_center(
+                    centroid, start_x, start_y, chip_sz, padding
+                )
                 if filter_detections:
-                    if in_center: 
+                    if in_center:
                         return i, j, in_center
                 else:
                     return i, j, in_center
-    return None 
+    return None
+
 
 def calculate_rectangle_size_from_batch_size(batch_size):
     """
@@ -82,7 +99,8 @@ def calculate_rectangle_size_from_batch_size(batch_size):
         return batch_size, 1
 
     return rectangle_height, rectangle_width
-    
+
+
 def get_tile_size(model_height, model_width, padding, batch_height, batch_width):
     """
     Calculate request tile size given model and batch dimensions
@@ -97,7 +115,8 @@ def get_tile_size(model_height, model_width, padding, batch_height, batch_width)
     tile_width = (model_width - 2 * padding) * batch_width
 
     return tile_height, tile_width
-    
+
+
 def tile_to_batch(
     pixel_block, model_height, model_width, padding, fixed_tile_size=True, **kwargs
 ):
@@ -134,79 +153,50 @@ def tile_to_batch(
         ] = sub_pixel_block
 
     return batch, batch_height, batch_width
- 
+
+
 features = {
-    'displayFieldName': '',
-    'fieldAliases': {
-        'FID': 'FID',
-        'Class': 'Class',
-        'Confidence': 'Confidence'
-    },
-    'geometryType': 'esriGeometryPolygon',
-    'fields': [
-        {
-            'name': 'FID',
-            'type': 'esriFieldTypeOID',
-            'alias': 'FID'
-        },
-        {
-            'name': 'Class',
-            'type': 'esriFieldTypeString',
-            'alias': 'Class'
-        },
-        {
-            'name': 'Confidence',
-            'type': 'esriFieldTypeDouble',
-            'alias': 'Confidence'
-        }
+    "displayFieldName": "",
+    "fieldAliases": {"FID": "FID", "Class": "Class", "Confidence": "Confidence"},
+    "geometryType": "esriGeometryPolygon",
+    "fields": [
+        {"name": "FID", "type": "esriFieldTypeOID", "alias": "FID"},
+        {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
+        {"name": "Confidence", "type": "esriFieldTypeDouble", "alias": "Confidence"},
     ],
-    'features': []
+    "features": [],
 }
 
 fields = {
-    'fields': [
-        {
-            'name': 'OID',
-            'type': 'esriFieldTypeOID',
-            'alias': 'OID'
-        },
-        {
-            'name': 'Class',
-            'type': 'esriFieldTypeString',
-            'alias': 'Class'
-        },
-        {
-            'name': 'Confidence',
-            'type': 'esriFieldTypeDouble',
-            'alias': 'Confidence'
-        },
-        {
-            'name': 'Shape',
-            'type': 'esriFieldTypeGeometry',
-            'alias': 'Shape'
-        }
+    "fields": [
+        {"name": "OID", "type": "esriFieldTypeOID", "alias": "OID"},
+        {"name": "Class", "type": "esriFieldTypeString", "alias": "Class"},
+        {"name": "Confidence", "type": "esriFieldTypeDouble", "alias": "Confidence"},
+        {"name": "Shape", "type": "esriFieldTypeGeometry", "alias": "Shape"},
     ]
 }
+
 
 class GeometryType:
     Point = 1
     Multipoint = 2
     Polyline = 3
     Polygon = 4
-    
+
+
 class TextSAM:
     def __init__(self):
         self.name = "Text SAM Model"
         self.description = "This python raster function applies computer vision to segment anything from text input"
-        
+
     def initialize(self, **kwargs):
-        if 'model' not in kwargs:
+        if "model" not in kwargs:
             return
 
-        model = kwargs['model']
+        model = kwargs["model"]
         model_as_file = True
         try:
-            with open(model, 'r') as f:
+            with open(model, "r") as f:
                 self.json_info = json.load(f)
         except FileNotFoundError:
             try:
@@ -215,12 +205,11 @@ class TextSAM:
             except json.decoder.JSONDecodeError:
                 raise Exception("Invalid model argument")
 
-        
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         device = None
         self.device_id = None
-        if 'device' in kwargs:
-            device = kwargs['device']
+        if "device" in kwargs:
+            device = kwargs["device"]
             if device == -2:
                 device = get_available_device()
 
@@ -229,7 +218,9 @@ class TextSAM:
                 try:
                     import torch
                 except Exception:
-                    raise Exception("PyTorch is not installed. Install it using conda install -c esri deep-learning-essentials")
+                    raise Exception(
+                        "PyTorch is not installed. Install it using conda install -c esri deep-learning-essentials"
+                    )
                 torch.cuda.set_device(device)
                 arcpy.env.processorType = "GPU"
                 arcpy.env.gpuId = str(device)
@@ -237,10 +228,10 @@ class TextSAM:
             else:
                 arcpy.env.processorType = "CPU"
                 self.device_id = "cpu"
-        
-        # appending the current dir to path so that segment_anything,groundingdino and supervision can be imported     
-        sam_root_dir = os.path.join(os.path.dirname(__file__), 'segment-anything')
-        gdino_root_dir = os.path.join(os.path.dirname(__file__), 'GroundingDINO-main')
+
+        # appending the current dir to path so that segment_anything,groundingdino and supervision can be imported
+        sam_root_dir = os.path.join(os.path.dirname(__file__), "segment-anything")
+        gdino_root_dir = os.path.join(os.path.dirname(__file__), "GroundingDINO-main")
         supervision_root_dir = os.path.dirname(__file__)
         if sam_root_dir not in sys.path:
             sys.path.insert(0, sam_root_dir)
@@ -248,34 +239,37 @@ class TextSAM:
             sys.path.insert(0, gdino_root_dir)
         if supervision_root_dir not in sys.path:
             sys.path.insert(0, supervision_root_dir)
-          
+
         # importing segment_anything, groundingdino and other dependencies
         from segment_anything import sam_model_registry, SamPredictor
         from groundingdino.models import build_model
         from groundingdino.util.slconfig import SLConfig
         from groundingdino.util.utils import clean_state_dict
         import torch
-        
+
         # loading the SAM model checkpoint and initliazing SAM mask_generator
-        sam_checkpoint =  os.path.join(sam_root_dir, "models/sam_vit_b_01ec64.pth")
+        sam_checkpoint = os.path.join(sam_root_dir, "models/sam_vit_b_01ec64.pth")
         model_type = "vit_b"
         sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
         sam.to(device=self.device_id)
         self.mask_generator = SamPredictor(sam)
-        
+
         # loading the GroundingDINO model checkpoint and config file and initliazing GroundingDINO
-        cache_file = os.path.join(gdino_root_dir,r"models/groundingdino_swinb_cogcoor.pth")
-        cache_config_file = os.path.join(gdino_root_dir,r"models/GroundingDINO_SwinB.cfg.py")        
+        cache_file = os.path.join(
+            gdino_root_dir, r"models/groundingdino_swinb_cogcoor.pth"
+        )
+        cache_config_file = os.path.join(
+            gdino_root_dir, r"models/GroundingDINO_SwinB.cfg.py"
+        )
         args = SLConfig.fromfile(cache_config_file)
         self.groundingdino_model = build_model(args)
         self.groundingdino_model.to(device=self.device_id)
         checkpoint = torch.load(cache_file, map_location="cpu")
-        self.groundingdino_model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
+        self.groundingdino_model.load_state_dict(
+            clean_state_dict(checkpoint["model"]), strict=False
+        )
         self.groundingdino_model.eval()
 
-        
-        
-            
     def getParameterInfo(self):
         required_parameters = [
             {
@@ -350,30 +344,18 @@ class TextSAM:
                     "displayName": "box_nms_thresh",
                     "description": "The box IoU cutoff used by non-maximal suppression to filter duplicate masks.",
                 },
-                
-                
-               
             ]
         )
         return required_parameters
-        
-        
+
     def getConfiguration(self, **scalars):
         self.tytx = int(scalars.get("tile_size", self.json_info["ImageHeight"]))
-        self.batch_size = (
-            int(math.sqrt(int(scalars.get("batch_size", 4)))) ** 2
-        )
-        self.padding = int(
-            scalars.get("padding", self.tytx // 4)
-        )
-        self.text_prompt =scalars.get("text_prompt")
-        
-        self.box_threshold = float(
-            scalars.get("box_threshold")
-        )
-        self.text_threshold = float(
-            scalars.get("text_threshold")
-        )
+        self.batch_size = int(math.sqrt(int(scalars.get("batch_size", 4)))) ** 2
+        self.padding = int(scalars.get("padding", self.tytx // 4))
+        self.text_prompt = scalars.get("text_prompt")
+
+        self.box_threshold = float(scalars.get("box_threshold"))
+        self.text_threshold = float(scalars.get("text_threshold"))
         (
             self.rectangle_height,
             self.rectangle_width,
@@ -385,7 +367,7 @@ class TextSAM:
             self.rectangle_height,
             self.rectangle_width,
         )
-        
+
         return {
             "inputMask": True,
             "extractBands": tuple(self.json_info["ExtractBands"]),
@@ -395,8 +377,7 @@ class TextSAM:
             "ty": ty,
             "fixedTileSize": 1,
         }
-        
-        
+
     def getFields(self):
         return json.dumps(fields)
 
@@ -407,8 +388,8 @@ class TextSAM:
         raster_mask = pixelBlocks["raster_mask"]
         raster_pixels = pixelBlocks["raster_pixels"]
         raster_pixels[np.where(raster_mask == 0)] = 0
-        pixelBlocks['raster_pixels'] = raster_pixels
-        
+        pixelBlocks["raster_pixels"] = raster_pixels
+
         # create batch from pixel blocks
         batch, batch_height, batch_width = tile_to_batch(
             raster_pixels,
@@ -419,7 +400,7 @@ class TextSAM:
             batch_height=self.rectangle_height,
             batch_width=self.rectangle_width,
         )
-        
+
         mask_list = []
         score_list = []
 
@@ -428,12 +409,12 @@ class TextSAM:
         import groundingdino.datasets.transforms as T
         from groundingdino.util import box_ops
         from groundingdino.util.inference import predict
-        
+
         # iterate over batch and get segment from model
-        for batch_idx,input_pixels in enumerate(batch):
+        for batch_idx, input_pixels in enumerate(batch):
             side = int(math.sqrt(self.batch_size))
             i, j = batch_idx // side, batch_idx % side
-            input_pixels = np.moveaxis(input_pixels,0,-1)
+            input_pixels = np.moveaxis(input_pixels, 0, -1)
             # for input_pixels in batch:
             pil_image = Image.fromarray(input_pixels)
             transform = T.Compose(
@@ -445,9 +426,9 @@ class TextSAM:
             image_transformed, _ = transform(pil_image, None)
             final_caption = ""
             if "," in self.text_prompt:
-                split_prompts = self.text_prompt.split(',')
+                split_prompts = self.text_prompt.split(",")
                 cleaned_items = [split_prompt.strip() for split_prompt in split_prompts]
-                final_caption = ' . '.join(cleaned_items)
+                final_caption = " . ".join(cleaned_items)
             else:
                 final_caption = self.text_prompt
             try:
@@ -469,81 +450,92 @@ class TextSAM:
             for en1, box1 in enumerate(boxes):
                 box1 = box1.numpy()
                 x, y, x1, y1 = box1
-                w = x1-x
+                w = x1 - x
                 h = y1 - y
-                if w < 0.25*int(self.tytx) and h <int(0.25*self.tytx):
+                if w < 0.25 * int(self.tytx) and h < int(0.25 * self.tytx):
                     updated_boxes.append(boxes[en1])
                     updated_scores.append(logits[en1])
             self.mask_generator.set_image(input_pixels)
-            
+
             if updated_boxes:
                 transformed_boxes = self.mask_generator.transform.apply_boxes_torch(
                     torch.stack(updated_boxes), input_pixels.shape[:2]
-                    )
+                )
                 masks, _, _ = self.mask_generator.predict_torch(
                     point_coords=None,
                     point_labels=None,
                     boxes=transformed_boxes.to(self.device_id),
                     multimask_output=False,
-                    )
+                )
                 for counter, mask_value in enumerate(masks):
-                    masked_image = mask_value*1
+                    masked_image = mask_value * 1
                     masked_image = masked_image.cpu().numpy()
-                    contours, hierarchy = cv2.findContours((masked_image[0]).astype(np.uint8),
-                                                            cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE,
-                                                            offset=(0, 0))
+                    contours, hierarchy = cv2.findContours(
+                        (masked_image[0]).astype(np.uint8),
+                        cv2.RETR_TREE,
+                        cv2.CHAIN_APPROX_SIMPLE,
+                        offset=(0, 0),
+                    )
                     hierarchy = hierarchy[0]
                     for c_idx, contour in enumerate(contours):
                         contour = contours[c_idx] = contour.squeeze(1)
                         contours[c_idx][:, 0] = contour[:, 0] + (j * self.tytx)
                         contours[c_idx][:, 1] = contour[:, 1] + (i * self.tytx)
-                    for (contour_idx,(next_contour, prev_contour, child_contour, parent_contour),) in enumerate(hierarchy):
+                    for (
+                        contour_idx,
+                        (next_contour, prev_contour, child_contour, parent_contour),
+                    ) in enumerate(hierarchy):
                         if parent_contour == -1:
                             coord_list = [contours[contour_idx].tolist()]
                             while child_contour != -1:
                                 coord_list.append(contours[child_contour].tolist())
                                 child_contour = hierarchy[child_contour][0]
                             mask_list.append(coord_list)
-                            score_list.append(str(updated_scores[counter].numpy()*100))
-                
+                            score_list.append(
+                                str(updated_scores[counter].numpy() * 100)
+                            )
+
         n_rows = int(math.sqrt(self.batch_size))
         n_cols = int(math.sqrt(self.batch_size))
         padding = self.padding
         keep_masks = []
         keep_scores = []
-       
+
         for idx, mask in enumerate(mask_list):
             if mask == []:
                 continue
-            centroid = get_centroid(mask[0]) 
+            centroid = get_centroid(mask[0])
             tytx = self.tytx
             grid_location = find_i_j(centroid, n_rows, n_cols, tytx, padding, True)
             if grid_location is not None:
                 i, j, in_center = grid_location
                 for poly_id, polygon in enumerate(mask):
                     polygon = np.array(polygon)
-                    polygon[:, 0] = polygon[:, 0] - (2*i + 1)*padding  # Inplace operation
-                    polygon[:, 1] = polygon[:, 1] - (2*j + 1)*padding  # Inplace operation            
+                    polygon[:, 0] = (
+                        polygon[:, 0] - (2 * i + 1) * padding
+                    )  # Inplace operation
+                    polygon[:, 1] = (
+                        polygon[:, 1] - (2 * j + 1) * padding
+                    )  # Inplace operation
                     mask[poly_id] = polygon.tolist()
                 if in_center:
                     keep_masks.append(mask)
                     keep_scores.append(score_list[idx])
-            
-        final_masks =  keep_masks
-        pred_score = keep_scores 
 
-        
-        features['features'] = []
-        
+        final_masks = keep_masks
+        pred_score = keep_scores
+
+        features["features"] = []
+
         for mask_idx, final_mask in enumerate(final_masks):
-            features['features'].append({
-                'attributes': {
-                    'OID': mask_idx + 1,
-                    'Class': "Segment",
-                    'Confidence': pred_score[mask_idx]
-                },
-                'geometry': {
-                    'rings': final_mask
+            features["features"].append(
+                {
+                    "attributes": {
+                        "OID": mask_idx + 1,
+                        "Class": "Segment",
+                        "Confidence": pred_score[mask_idx],
+                    },
+                    "geometry": {"rings": final_mask},
                 }
-        })
+            )
         return {"output_vectors": json.dumps(features)}
