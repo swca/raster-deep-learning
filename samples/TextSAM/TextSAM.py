@@ -15,10 +15,10 @@ from PIL import Image
 
 try:
     import torch
-except ModuleNotFoundError:
-    raise Exception(
+except ModuleNotFoundError as e:
+    raise RuntimeError(
         "PyTorch is not installed. Install it using conda install -c esri deep-learning-essentials"
-    )
+    ) from e
 try:
     import GPUtil
 except ModuleNotFoundError:
@@ -345,6 +345,11 @@ class TextSAM:
 
     @staticmethod
     def get_sam(sam_root_dir: typing.Optional[str] = None) -> Sam:
+        """
+        Get the SAM model
+        :param sam_root_dir: SAM root directory
+        :return: SAM model
+        """
         _sam_root_dir = sam_root_dir or os.path.join(
             os.path.dirname(__file__), "segment-anything"
         )
@@ -370,6 +375,11 @@ class TextSAM:
     def get_cache_and_config(
         gdino_root_dir: typing.Optional[str] = None,
     ) -> typing.Tuple[str, str]:
+        """
+        Get the cache and config files for GroundingDINO
+        :param gdino_root_dir: GroundingDINO root directory
+        :return: cache and config files
+        """
         _gdino_root_dir = gdino_root_dir or os.path.join(
             os.path.dirname(__file__), "GroundingDINO-main"
         )
